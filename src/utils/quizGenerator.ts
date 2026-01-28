@@ -83,7 +83,7 @@ function formatDate(date: Date): string {
 }
 
 /**
- * Generate Daily Quizzes - 1 per day, 365 days
+ * Generate Daily Quizzes - Multiple per day for demo
  */
 function generateDailyQuizzes(startDate: Date, endDate: Date): ExtendedQuiz[] {
     const quizzes: ExtendedQuiz[] = [];
@@ -96,20 +96,59 @@ function generateDailyQuizzes(startDate: Date, endDate: Date): ExtendedQuiz[] {
         const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
         const isToday = currentDate.getTime() === today.getTime();
 
-        quizzes.push({
-            id: `daily-${dateStr}`,
-            type: 'daily',
-            title: isToday ? "Today's Mixed Practice" : "Daily Mixed Practice",
-            description: '15 questions covering all subjects',
-            subject: 'Mixed',
-            questions: 15,
-            duration: 15,
-            difficulty: getDifficulty(dayIndex),
-            scheduledDate: dateStr,
-            examLevel: 'prelims',
-            isLocked: false,
-            isNew: isToday,
-            totalUsers: Math.floor(1500 + seededRandom(dayIndex) * 1000),
+        // Generate 4 daily quizzes for variety
+        for (let i = 0; i < 4; i++) {
+            quizzes.push({
+                id: `daily-${dateStr}-${i}`,
+                type: 'daily',
+                title: isToday ? "Today's Mixed Practice" : "Daily Mixed Practice",
+                description: '15 questions covering all subjects',
+                subject: 'Mixed',
+                questions: 15,
+                duration: 15,
+                difficulty: getDifficulty(dayIndex + i),
+                scheduledDate: dateStr,
+                examLevel: 'prelims',
+                isLocked: false,
+                isNew: isToday && i === 0,
+                totalUsers: Math.floor(1500 + seededRandom(dayIndex + i) * 1000),
+            });
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return quizzes;
+}
+
+/**
+ * Generate Rapid Fire - Multiple daily
+ */
+function generateRapidFireQuizzes(startDate: Date, endDate: Date): ExtendedQuiz[] {
+    const quizzes: ExtendedQuiz[] = [];
+    const subjects = Object.keys(quizTemplate.subjects);
+    const currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+        const dateStr = formatDate(currentDate);
+        const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
+
+        // Generate 3 rapid-fire quizzes daily
+        subjects.slice(0, 3).forEach((subject, index) => {
+            quizzes.push({
+                id: `rapid-${dateStr}-${index}`,
+                type: 'rapid-fire',
+                title: `Rapid Fire - ${subject}`,
+                description: '10 quick questions to test your speed',
+                subject,
+                questions: 10,
+                duration: 10,
+                difficulty: 'Medium',
+                scheduledDate: dateStr,
+                examLevel: 'prelims',
+                isLocked: false,
+                totalUsers: Math.floor(800 + seededRandom(dayIndex + index) * 500),
+            });
         });
 
         currentDate.setDate(currentDate.getDate() + 1);
@@ -119,59 +158,22 @@ function generateDailyQuizzes(startDate: Date, endDate: Date): ExtendedQuiz[] {
 }
 
 /**
- * Generate Rapid Fire - 2 per week per subject
- */
-function generateRapidFireQuizzes(startDate: Date, endDate: Date): ExtendedQuiz[] {
-    const quizzes: ExtendedQuiz[] = [];
-    const subjects = Object.keys(quizTemplate.subjects);
-    const currentDate = new Date(startDate);
-
-    while (currentDate <= endDate) {
-        // Generate on Monday and Thursday
-        if (currentDate.getDay() === 1 || currentDate.getDay() === 4) {
-            const dateStr = formatDate(currentDate);
-            const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
-
-            subjects.forEach((subject, index) => {
-                quizzes.push({
-                    id: `rapid-${dateStr}-${index}`,
-                    type: 'rapid-fire',
-                    title: `Rapid Fire - ${subject}`,
-                    description: '10 quick questions to test your speed',
-                    subject,
-                    questions: 10,
-                    duration: 10,
-                    difficulty: 'Medium',
-                    scheduledDate: dateStr,
-                    examLevel: 'prelims',
-                    isLocked: false,
-                    totalUsers: Math.floor(800 + seededRandom(dayIndex + index) * 500),
-                });
-            });
-        }
-        currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    return quizzes;
-}
-
-/**
- * Generate Speed Challenge - Weekly on Sunday
+ * Generate Speed Challenge - Multiple daily
  */
 function generateSpeedChallengeQuizzes(startDate: Date, endDate: Date): ExtendedQuiz[] {
     const quizzes: ExtendedQuiz[] = [];
     const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-        // Generate on Sunday
-        if (currentDate.getDay() === 0) {
-            const dateStr = formatDate(currentDate);
-            const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
+        const dateStr = formatDate(currentDate);
+        const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
 
+        // Generate 2 speed challenges daily
+        for (let i = 0; i < 2; i++) {
             quizzes.push({
-                id: `speed-${dateStr}`,
+                id: `speed-${dateStr}-${i}`,
                 type: 'speed-challenge',
-                title: 'Speed Challenge',
+                title: `Speed Challenge ${i + 1}`,
                 description: '20 questions in 15 minutes - test your limits!',
                 subject: 'Mixed',
                 questions: 20,
@@ -180,9 +182,10 @@ function generateSpeedChallengeQuizzes(startDate: Date, endDate: Date): Extended
                 scheduledDate: dateStr,
                 examLevel: 'prelims',
                 isLocked: false,
-                totalUsers: Math.floor(1200 + seededRandom(dayIndex) * 800),
+                totalUsers: Math.floor(1200 + seededRandom(dayIndex + i) * 800),
             });
         }
+
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
@@ -190,7 +193,7 @@ function generateSpeedChallengeQuizzes(startDate: Date, endDate: Date): Extended
 }
 
 /**
- * Generate Mini Tests - Weekly per subject
+ * Generate Mini Tests - Daily
  */
 function generateMiniTests(startDate: Date, endDate: Date): ExtendedQuiz[] {
     const quizzes: ExtendedQuiz[] = [];
@@ -198,31 +201,31 @@ function generateMiniTests(startDate: Date, endDate: Date): ExtendedQuiz[] {
     const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-        // Generate on Wednesday
-        if (currentDate.getDay() === 3) {
-            const dateStr = formatDate(currentDate);
-            const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
-            const weekNumber = Math.floor(dayIndex / 7);
+        const dateStr = formatDate(currentDate);
+        const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
 
-            const subject = subjects[weekNumber % subjects.length];
-            const topicIndex = Math.floor(weekNumber / subjects.length) % quizTemplate.subjects[subject].topics.length;
+        // Generate 2 mini tests daily with different subjects
+        for (let i = 0; i < 2; i++) {
+            const subject = subjects[(dayIndex + i) % subjects.length];
+            const topicIndex = Math.floor((dayIndex + i) / subjects.length) % quizTemplate.subjects[subject].topics.length;
             const topic = quizTemplate.subjects[subject].topics[topicIndex];
 
             quizzes.push({
-                id: `mini-${dateStr}`,
+                id: `mini-${dateStr}-${i}`,
                 type: 'mini-test',
                 title: `Mini Test - ${topic}`,
                 description: `30 questions on ${subject}`,
                 subject,
                 questions: 30,
                 duration: 25,
-                difficulty: getDifficulty(dayIndex),
+                difficulty: getDifficulty(dayIndex + i),
                 scheduledDate: dateStr,
                 examLevel: 'both',
                 isLocked: false,
-                totalUsers: Math.floor(900 + seededRandom(dayIndex) * 600),
+                totalUsers: Math.floor(900 + seededRandom(dayIndex + i) * 600),
             });
         }
+
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
@@ -230,7 +233,7 @@ function generateMiniTests(startDate: Date, endDate: Date): ExtendedQuiz[] {
 }
 
 /**
- * Generate Sectional Tests - Bi-weekly per subject
+ * Generate Sectional Tests - Daily per subject
  */
 function generateSectionalTests(startDate: Date, endDate: Date): ExtendedQuiz[] {
     const quizzes: ExtendedQuiz[] = [];
@@ -238,31 +241,29 @@ function generateSectionalTests(startDate: Date, endDate: Date): ExtendedQuiz[] 
     const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-        // Generate every other Saturday
-        if (currentDate.getDay() === 6) {
-            const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
-            const weekNumber = Math.floor(dayIndex / 7);
+        const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
+        const dateStr = formatDate(currentDate);
 
-            if (weekNumber % 2 === 0) {
-                const dateStr = formatDate(currentDate);
-                const subject = subjects[Math.floor(weekNumber / 2) % subjects.length];
+        // Generate 2 sectional tests daily
+        for (let i = 0; i < 2; i++) {
+            const subject = subjects[(dayIndex + i) % subjects.length];
 
-                quizzes.push({
-                    id: `sectional-${dateStr}`,
-                    type: 'sectional',
-                    title: `Sectional Test - ${subject}`,
-                    description: `50 comprehensive questions on ${subject}`,
-                    subject,
-                    questions: 50,
-                    duration: 45,
-                    difficulty: 'Hard',
-                    scheduledDate: dateStr,
-                    examLevel: 'both',
-                    isLocked: false,
-                    totalUsers: Math.floor(700 + seededRandom(dayIndex) * 400),
-                });
-            }
+            quizzes.push({
+                id: `sectional-${dateStr}-${i}`,
+                type: 'sectional',
+                title: `Sectional Test - ${subject}`,
+                description: `50 comprehensive questions on ${subject}`,
+                subject,
+                questions: 50,
+                duration: 45,
+                difficulty: 'Hard',
+                scheduledDate: dateStr,
+                examLevel: 'both',
+                isLocked: false,
+                totalUsers: Math.floor(700 + seededRandom(dayIndex + i) * 400),
+            });
         }
+
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
@@ -270,38 +271,32 @@ function generateSectionalTests(startDate: Date, endDate: Date): ExtendedQuiz[] 
 }
 
 /**
- * Generate Full Test Prelims - Monthly (last Sunday)
+ * Generate Full Test Prelims - Daily
  */
 function generateFullTestPrelims(startDate: Date, endDate: Date): ExtendedQuiz[] {
     const quizzes: ExtendedQuiz[] = [];
     const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-        // Check if it's the last Sunday of the month
-        if (currentDate.getDay() === 0) {
-            const nextWeek = new Date(currentDate);
-            nextWeek.setDate(nextWeek.getDate() + 7);
+        const dateStr = formatDate(currentDate);
+        const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
 
-            if (nextWeek.getMonth() !== currentDate.getMonth()) {
-                const dateStr = formatDate(currentDate);
-                const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
+        // Generate 1 full prelims test daily
+        quizzes.push({
+            id: `full-prelims-${dateStr}`,
+            type: 'full-prelims',
+            title: 'Full Test - Prelims Pattern',
+            description: '100 questions following exact prelims exam pattern',
+            subject: 'All Subjects',
+            questions: 100,
+            duration: 60,
+            difficulty: 'Hard',
+            scheduledDate: dateStr,
+            examLevel: 'prelims',
+            isLocked: false,
+            totalUsers: Math.floor(2000 + seededRandom(dayIndex) * 1500),
+        });
 
-                quizzes.push({
-                    id: `full-prelims-${dateStr}`,
-                    type: 'full-prelims',
-                    title: 'Full Test - Prelims Pattern',
-                    description: '100 questions following exact prelims exam pattern',
-                    subject: 'All Subjects',
-                    questions: 100,
-                    duration: 60,
-                    difficulty: 'Hard',
-                    scheduledDate: dateStr,
-                    examLevel: 'prelims',
-                    isLocked: false,
-                    totalUsers: Math.floor(2000 + seededRandom(dayIndex) * 1500),
-                });
-            }
-        }
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
@@ -309,44 +304,32 @@ function generateFullTestPrelims(startDate: Date, endDate: Date): ExtendedQuiz[]
 }
 
 /**
- * Generate Full Test Mains - Monthly (third Sunday)
+ * Generate Full Test Mains - Daily
  */
 function generateFullTestMains(startDate: Date, endDate: Date): ExtendedQuiz[] {
     const quizzes: ExtendedQuiz[] = [];
     const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-        if (currentDate.getDay() === 0) {
-            const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-            const firstSunday = new Date(monthStart);
+        const dateStr = formatDate(currentDate);
+        const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
 
-            while (firstSunday.getDay() !== 0) {
-                firstSunday.setDate(firstSunday.getDate() + 1);
-            }
+        // Generate 1 full mains test daily
+        quizzes.push({
+            id: `full-mains-${dateStr}`,
+            type: 'full-mains',
+            title: 'Full Test - Mains Pattern',
+            description: '155 questions following exact mains exam pattern',
+            subject: 'All Subjects',
+            questions: 155,
+            duration: 180,
+            difficulty: 'Hard',
+            scheduledDate: dateStr,
+            examLevel: 'mains',
+            isLocked: false,
+            totalUsers: Math.floor(1800 + seededRandom(dayIndex) * 1200),
+        });
 
-            const thirdSunday = new Date(firstSunday);
-            thirdSunday.setDate(thirdSunday.getDate() + 14);
-
-            if (currentDate.getTime() === thirdSunday.getTime()) {
-                const dateStr = formatDate(currentDate);
-                const dayIndex = Math.floor(currentDate.getTime() / (1000 * 60 * 60 * 24));
-
-                quizzes.push({
-                    id: `full-mains-${dateStr}`,
-                    type: 'full-mains',
-                    title: 'Full Test - Mains Pattern',
-                    description: '155 questions following exact mains exam pattern',
-                    subject: 'All Subjects',
-                    questions: 155,
-                    duration: 180,
-                    difficulty: 'Hard',
-                    scheduledDate: dateStr,
-                    examLevel: 'mains',
-                    isLocked: false,
-                    totalUsers: Math.floor(1800 + seededRandom(dayIndex) * 1200),
-                });
-            }
-        }
         currentDate.setDate(currentDate.getDate() + 1);
     }
 

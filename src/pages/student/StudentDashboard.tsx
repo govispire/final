@@ -251,7 +251,50 @@ const StudentDashboard = () => {
 
   // Free tests/quizzes data - Pull today's quizzes from centralized data
   // Free tests/quizzes data - Pull quizzes for SELECTED date
-  const freeTests = dailyQuizzes.filter(q => q.scheduledDate === selectedDate);
+  const allFreteTestsForDate = dailyQuizzes.filter(q => q.scheduledDate === selectedDate);
+
+  // Select diverse quiz types (one from each type) for better variety
+  const getDeiverseQuizzes = (quizzes: any[], limit: number = 5) => {
+    const quizzesByType = new Map<string, any[]>();
+
+    // Group quizzes by type
+    quizzes.forEach(quiz => {
+      if (!quizzesByType.has(quiz.type)) {
+        quizzesByType.set(quiz.type, []);
+      }
+      quizzesByType.get(quiz.type)!.push(quiz);
+    });
+
+    const selectedQuizzes: any[] = [];
+    const types = Array.from(quizzesByType.keys());
+
+    // Round-robin selection to ensure variety
+    let typeIndex = 0;
+    while (selectedQuizzes.length < limit && selectedQuizzes.length < quizzes.length) {
+      const currentType = types[typeIndex % types.length];
+      const quizzesOfType = quizzesByType.get(currentType);
+
+      if (quizzesOfType && quizzesOfType.length > 0) {
+        selectedQuizzes.push(quizzesOfType.shift()!);
+      }
+
+      typeIndex++;
+
+      // If we've gone through all types and still have empty ones, remove them
+      if (typeIndex % types.length === 0) {
+        const emptyTypes = types.filter(t => quizzesByType.get(t)?.length === 0);
+        emptyTypes.forEach(t => {
+          const idx = types.indexOf(t);
+          if (idx > -1) types.splice(idx, 1);
+        });
+        if (types.length === 0) break;
+      }
+    }
+
+    return selectedQuizzes;
+  };
+
+  const freeTests = getDeiverseQuizzes(allFreteTestsForDate, 5);
 
   const handleNewsClick = (news: any) => {
     setSelectedNews(news);
@@ -736,7 +779,7 @@ const StudentDashboard = () => {
             <Card className="p-4 bg-card">
               <h3 className="font-semibold text-sm mb-3">Free Test/Quiz</h3>
               <div className="space-y-2">
-                {freeTests.map((test, idx) => (
+                {freeTests.slice(0, 5).map((test, idx) => (
                   <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -767,9 +810,11 @@ const StudentDashboard = () => {
                   </div>
                 ))}
               </div>
-              <Button variant="outline" className="w-full mt-3" asChild>
-                <Link to="/student/daily-quizzes">View All Tests</Link>
-              </Button>
+              {allFreteTestsForDate.length > 5 && (
+                <Button variant="outline" className="w-full mt-3" asChild>
+                  <Link to="/student/daily-quizzes">View All Tests ({allFreteTestsForDate.length})</Link>
+                </Button>
+              )}
             </Card>
             {/* Upcoming Live Tests - Mobile */}
             <UpcomingLiveTests />
@@ -890,7 +935,7 @@ const StudentDashboard = () => {
               Free Test/Quiz <span className="text-xs font-normal text-muted-foreground ml-2">({new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span>
             </h3>
             <div className="space-y-2">
-              {freeTests.map((test, idx) => (
+              {freeTests.slice(0, 5).map((test, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -921,9 +966,11 @@ const StudentDashboard = () => {
                 </div>
               ))}
             </div>
-            <Button variant="outline" className="w-full mt-3" asChild>
-              <Link to="/student/daily-quizzes">View All Tests</Link>
-            </Button>
+            {allFreteTestsForDate.length > 5 && (
+              <Button variant="outline" className="w-full mt-3" asChild>
+                <Link to="/student/daily-quizzes">View All Tests ({allFreteTestsForDate.length})</Link>
+              </Button>
+            )}
           </Card>
           {/* Upcoming Live Tests */}
           <UpcomingLiveTests />

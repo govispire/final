@@ -9,16 +9,35 @@ import { CheckCircle, Clock, X, Minus, Trophy, Target, Star, Lock } from 'lucide
 import { ExamStage } from '@/hooks/useSelfCareExams';
 import { useStageEditability } from '@/hooks/useStageEditability';
 import { toast } from '@/hooks/use-toast';
+import { StageResultDialog } from './StageResultDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+
+
 
 interface StageProgressBarProps {
   stages: ExamStage[];
   onStageUpdate: (stageIndex: number, updates: Partial<ExamStage>) => void;
+  examName?: string;
 }
 
-export const StageProgressBar: React.FC<StageProgressBarProps> = ({ stages, onStageUpdate }) => {
+export const StageProgressBar: React.FC<StageProgressBarProps> = ({ stages, onStageUpdate, examName = "Exam" }) => {
   const [editingStage, setEditingStage] = useState<number | null>(null);
   const [stageData, setStageData] = useState<Partial<ExamStage>>({});
+  const [showResultDialog, setShowResultDialog] = useState(false);
+  const [resultDialogData, setResultDialogData] = useState<{
+    stageName: string;
+    stageStatus: 'cleared' | 'not-cleared' | 'selected' | 'not-selected';
+    isFinalStage: boolean;
+    score?: string;
+  } | null>(null);
   const { isStageEditable, getDisabledReason } = useStageEditability();
+
+  // Get student profile data
+  const { user } = useAuth();
+  const [userProfile] = useLocalStorage<any>('userProfile', null);
+  const studentName = user?.name || "Aspirant";
+  const studentPhoto = userProfile?.avatar || user?.avatar;
 
   const handleStageClick = (index: number) => {
     if (!isStageEditable(stages, index)) {
@@ -37,7 +56,29 @@ export const StageProgressBar: React.FC<StageProgressBarProps> = ({ stages, onSt
 
   const handleStageUpdate = () => {
     if (editingStage !== null) {
+      const updatedStatus = stageData.status;
+      const stageName = stages[editingStage].name;
+      const finalStage = isFinalStage(editingStage);
+
+      // Save the stage update
       onStageUpdate(editingStage, stageData);
+
+      // Show result dialog for cleared/not-cleared or selected/not-selected statuses
+      if (
+        updatedStatus === 'cleared' ||
+        updatedStatus === 'not-cleared' ||
+        updatedStatus === 'selected' ||
+        updatedStatus === 'not-selected'
+      ) {
+        setResultDialogData({
+          stageName,
+          stageStatus: updatedStatus as 'cleared' | 'not-cleared' | 'selected' | 'not-selected',
+          isFinalStage: finalStage,
+          score: stageData.score
+        });
+        setShowResultDialog(true);
+      }
+
       setEditingStage(null);
       setStageData({});
     }
@@ -161,8 +202,8 @@ export const StageProgressBar: React.FC<StageProgressBarProps> = ({ stages, onSt
     const stageElement = (
       <div
         className={`flex flex-col items-center relative z-10 transition-all duration-200 ${editable
-            ? 'cursor-pointer hover:opacity-80 hover:scale-105'
-            : 'cursor-not-allowed'
+          ? 'cursor-pointer hover:opacity-80 hover:scale-105'
+          : 'cursor-not-allowed'
           }`}
         style={{ width: `${stageWidth}%` }}
         onClick={() => handleStageClick(index)}
@@ -182,8 +223,8 @@ export const StageProgressBar: React.FC<StageProgressBarProps> = ({ stages, onSt
           {stage.name.length > 12 ? `${stage.name.substring(0, 12)}...` : stage.name}
         </p>
         <p className={`text-[10px] sm:text-xs text-center font-medium ${stage.status === 'cleared' || stage.status === 'selected' ? 'text-green-600' :
-            stage.status === 'not-cleared' || stage.status === 'not-selected' ? 'text-red-600' :
-              isActive ? 'text-blue-600 font-semibold' : 'text-gray-500'
+          stage.status === 'not-cleared' || stage.status === 'not-selected' ? 'text-red-600' :
+            isActive ? 'text-blue-600 font-semibold' : 'text-gray-500'
           } ${!editable ? 'opacity-60' : ''}`}>
           {isActive && stage.status === 'pending' ? 'Current Stage' : getStageStatusText(stage.status, index)}
         </p>
@@ -334,6 +375,24 @@ export const StageProgressBar: React.FC<StageProgressBarProps> = ({ stages, onSt
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Result Dialog - Congratulations or Motivation */}
+      {resultDialogData && (
+        <StageResultDialog
+          open={showResultDialog}
+          onClose={() => {
+            setShowResultDialog(false);
+            setResultDialogData(null);
+          }}
+          examName={examName}
+          stageName={resultDialogData.stageName}
+          stageStatus={resultDialogData.stageStatus}
+          isFinalStage={resultDialogData.isFinalStage}
+          score={resultDialogData.score}
+          studentName={studentName}
+          studentPhoto={studentPhoto}
+        />
+      )}
     </>
   );
 };

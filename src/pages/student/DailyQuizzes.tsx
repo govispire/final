@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Zap, Flame, CheckCircle, Calendar, Sparkles, Target, ArrowLeft
+  Zap, Flame, CheckCircle, Target, ArrowLeft,
+  ChevronLeft, ChevronRight, Calendar, Clock, Trophy, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import QuizAttempt, { QuizResult } from '@/components/student/quiz/QuizAttempt';
@@ -13,8 +14,11 @@ import StreakRewards from '@/components/student/quiz/StreakRewards';
 import SmartRecommendations from '@/components/student/quiz/SmartRecommendations';
 import Leaderboard from '@/components/student/quiz/Leaderboard';
 import QuizCard from '@/components/student/quiz/QuizCard';
+import QuizTypeSelector from '@/components/student/quiz/QuizTypeSelector';
 import { getQuestionsForQuiz } from '@/data/quizQuestionsData';
-import { dailyQuizzes, DailyQuiz } from '@/data/dailyQuizzesData';
+import { dailyQuizzes, getQuizzesByDateAndType } from '@/data/dailyQuizzesData';
+import { ExtendedQuiz } from '@/types/quizTypes';
+import { QuizType } from '@/types/quizTypes';
 import {
   getQuizCompletions,
   saveQuizCompletion,
@@ -29,26 +33,15 @@ import {
   LeaderboardPeriod
 } from '@/services/leaderboardService';
 
-interface Quiz extends DailyQuiz {
-  completed: boolean;
-  score?: number;
-}
-
-const DailyQuizzes = () => {
-  const [selectedSubject, setSelectedSubject] = useState<string>('all');
-  const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+const FreeQuizzes = () => {
+  const [selectedType, setSelectedType] = useState<QuizType | 'all'>('all');
+  const [activeQuiz, setActiveQuiz] = useState<ExtendedQuiz | null>(null);
   const [leaderboardPeriod, setLeaderboardPeriod] = useState<LeaderboardPeriod>('daily');
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
 
-  // Get unique dates from quizzes for date selector (last 30 days + today + next 7 days)
-  const availableDates = Array.from(new Set(dailyQuizzes.map(q => q.scheduledDate)))
-    .sort((a, b) => b.localeCompare(a))
-    .slice(0, 38);
-
-  // Load quiz completions and calculate analytics
-  const [quizzes, setQuizzes] = useState<Quiz[]>(() => {
+  const [quizzes, setQuizzes] = useState<ExtendedQuiz[]>(() => {
     const completions = getQuizCompletions();
     return dailyQuizzes.map(q => ({
       ...q,
@@ -64,8 +57,6 @@ const DailyQuizzes = () => {
   });
 
   const stats = getOverallStatistics();
-
-  // Calculate leaderboard
   const completions = getQuizCompletions();
   const userScore = calculateUserScore(Object.values(completions));
   const leaderboard = getLeaderboardData(
@@ -75,36 +66,81 @@ const DailyQuizzes = () => {
     streakData.totalQuizzesCompleted
   );
 
-  const subjects = ['all', 'Quantitative Aptitude', 'Reasoning', 'English', 'General Awareness', 'Current Affairs'];
+  const availableDates = useMemo(() => {
+    const dates = Array.from(new Set(dailyQuizzes.map(q => q.scheduledDate)))
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, 30);
+    return dates;
+  }, []);
 
-  const filteredQuizzes = quizzes.filter(q =>
-    q.scheduledDate === selectedDate &&
-    (selectedSubject === 'all' || q.subject === selectedSubject)
-  );
+  const filteredQuizzes = useMemo(() => {
+    return getQuizzesByDateAndType(quizzes, selectedDate, selectedType === 'all' ? undefined : selectedType);
+  }, [quizzes, selectedDate, selectedType]);
 
-  const completedSelected = quizzes.filter(q => q.scheduledDate === selectedDate && q.completed).length;
-  const totalSelected = quizzes.filter(q => q.scheduledDate === selectedDate && !q.isLocked).length;
+  const quizTypeStats = useMemo(() => {
+    const typeStats: Record<QuizType | 'all', { total: number; completed: number; averageScore: number }> = {
+      'all': { total: 0, completed: 0, averageScore: 0 },
+      'daily': { total: 0, completed: 0, averageScore: 0 },
+      'rapid-fire': { total: 0, completed: 0, averageScore: 0 },
+      'speed-challenge': { total: 0, completed: 0, averageScore: 0 },
+      'mini-test': { total: 0, completed: 0, averageScore: 0 },
+      'sectional': { total: 0, completed: 0, averageScore: 0 },
+      'full-prelims': { total: 0, completed: 0, averageScore: 0 },
+      'full-mains': { total: 0, completed: 0, averageScore: 0 },
+    };
 
-  const handleStartQuiz = (quiz: Quiz) => {
+    quizzes.forEach(quiz => {
+      typeStats['all'].total++;
+      typeStats[quiz.type].total++;
+
+      if (quiz.completed && quiz.score !== undefined) {
+        typeStats['all'].completed++;
+        typeStats['all'].averageScore += quiz.score;
+
+        typeStats[quiz.type].completed++;
+        typeStats[quiz.type].averageScore += quiz.score;
+      }
+    });
+
+    Object.values(typeStats).forEach(stat => {
+      if (stat.completed > 0) {
+        stat.averageScore = Math.round(stat.averageScore / stat.completed);
+      }
+    });
+
+    return typeStats;
+  }, [quizzes]);
+
+  const completedToday = quizzes.filter(q => q.scheduledDate === selectedDate && q.completed).length;
+  const totalToday = quizzes.filter(q => q.scheduledDate === selectedDate && !q.isLocked).length;
+
+  const goToPreviousDate = () => {
+    const currentIndex = availableDates.indexOf(selectedDate);
+    if (currentIndex < availableDates.length - 1) {
+      setSelectedDate(availableDates[currentIndex + 1]);
+    }
+  };
+
+  const goToNextDate = () => {
+    const currentIndex = availableDates.indexOf(selectedDate);
+    if (currentIndex > 0) {
+      setSelectedDate(availableDates[currentIndex - 1]);
+    }
+  };
+
+  const handleStartQuiz = (quiz: ExtendedQuiz) => {
     if (quiz.isLocked) {
-      toast.error('This quiz is locked!', {
-        description: 'Complete more quizzes to unlock this one.'
-      });
+      toast.error('This quiz is locked!');
       return;
     }
-
     if (quiz.scheduledDate > todayStr) {
-      toast.error('This quiz is scheduled for the future!', {
-        description: `This quiz will be available on ${new Date(quiz.scheduledDate).toLocaleDateString()}.`
-      });
+      toast.error('This quiz is scheduled for the future!');
       return;
     }
-
     setActiveQuiz(quiz);
   };
 
   const handleQuizComplete = (result: QuizResult) => {
-    // Create quiz completion record
     const completion: QuizCompletion = {
       quizId: result.quizId,
       completed: true,
@@ -116,62 +152,35 @@ const DailyQuizzes = () => {
       date: new Date().toISOString(),
       subject: activeQuiz?.subject || '',
       topic: activeQuiz?.title || '',
-      answers: [] // In a real app, this would contain detailed answer data
+      answers: []
     };
 
     saveQuizCompletion(completion);
 
-    // Update presence
     const today = new Date().toISOString().split('T')[0];
     const presenceData = JSON.parse(localStorage.getItem('studentPresence') || '{}');
     presenceData[today] = true;
     localStorage.setItem('studentPresence', JSON.stringify(presenceData));
 
-    // Update quiz completion status
     setQuizzes(prev => prev.map(q =>
-      q.id === result.quizId
-        ? { ...q, completed: true, score: result.score }
-        : q
+      q.id === result.quizId ? { ...q, completed: true, score: result.score } : q
     ));
 
-    // Recalculate analytics
     const newStreakData = calculateStreakData();
     setStreakData(newStreakData);
 
     const allCompletions = getQuizCompletions();
     setWeakAreas(identifyWeakAreas(allCompletions));
 
-    // Show completion toast
-    toast.success(`🎉 Quiz completed! Score: ${result.score}%`, {
-      description: `${result.correctAnswers}/${result.totalQuestions} correct answers`
-    });
-
-    // Check for streak milestone
-    if (newStreakData.currentStreak > streakData.currentStreak) {
-      const milestones = [3, 7, 14, 30, 60];
-      if (milestones.includes(newStreakData.currentStreak)) {
-        toast.success(`🔥 ${newStreakData.currentStreak} Day Streak Achieved!`, {
-          description: 'Keep up the great work!'
-        });
-      }
-    }
+    toast.success(`Quiz completed! Score: ${result.score}%`);
+    setActiveQuiz(null);
   };
 
-  const handleClaimReward = (rewardId: string) => {
-    console.log('Claiming reward:', rewardId);
-  };
-
-  // Show quiz attempt interface if a quiz is active
   if (activeQuiz) {
     const questions = getQuestionsForQuiz(activeQuiz.subject, activeQuiz.questions);
-
     return (
       <div>
-        <Button
-          variant="ghost"
-          className="m-4"
-          onClick={() => setActiveQuiz(null)}
-        >
+        <Button variant="ghost" className="m-4" onClick={() => setActiveQuiz(null)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Quizzes
         </Button>
@@ -189,138 +198,86 @@ const DailyQuizzes = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Simple Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black flex items-center gap-3 bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
-            <Zap className="h-7 w-7 text-primary" />
-            Daily Free Quizzes
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Practice daily to boost your exam preparation
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Free Quiz Practice</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {selectedDate === todayStr ? 'Today' : new Date(selectedDate).toLocaleDateString('en-IN', {
+              day: 'numeric', month: 'long', year: 'numeric'
+            })} • {filteredQuizzes.length} {filteredQuizzes.length === 1 ? 'quiz' : 'quizzes'} available
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Card className="px-5 py-3 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/20 border-orange-200/50 dark:border-orange-800/30 shadow-sm">
+
+        <div className="flex items-center gap-3">
+          <div className="text-right">
             <div className="flex items-center gap-2">
-              <Flame className="h-5 w-5 text-orange-500" />
-              <div>
-                <p className="text-2xl font-black text-orange-600 dark:text-orange-400">
-                  {streakData.currentStreak}
-                </p>
-                <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wide">
-                  Day Streak
-                </p>
-              </div>
+              <Flame className="h-4 w-4 text-orange-500" />
+              <span className="text-xl font-bold">{streakData.currentStreak}</span>
+              <span className="text-sm text-muted-foreground">day streak</span>
             </div>
-          </Card>
-          <Card className="px-5 py-3 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/20 border-green-200/50 dark:border-green-800/30 shadow-sm">
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="text-right">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="text-2xl font-black text-green-600 dark:text-green-400">
-                  {completedSelected}/{totalSelected}
-                </p>
-                <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wide">
-                  {selectedDate === todayStr ? 'Today' : 'Completed'}
-                </p>
-              </div>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span className="text-xl font-bold">{completedToday}/{totalToday}</span>
+              <span className="text-sm text-muted-foreground">completed</span>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
 
-      {/* Progress Overview */}
-      <Card className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border-primary/20 shadow-sm">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-6">
-            <div className="flex-1">
-              <h3 className="font-bold mb-3 text-lg">
-                {selectedDate === todayStr ? "Today's" : "Daily"} Progress
-              </h3>
-              <Progress
-                value={totalSelected > 0 ? (completedSelected / totalSelected) * 100 : 0}
-                className="h-4 mb-3"
-              />
-              <p className="text-sm text-muted-foreground">
-                {totalSelected - completedSelected > 0
-                  ? `Complete ${totalSelected - completedSelected} more ${totalSelected - completedSelected === 1 ? 'quiz' : 'quizzes'} to unlock bonus rewards!`
-                  : "All quizzes completed for this date! Great job!"}
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-6 text-center">
-              <div>
-                <p className="text-3xl font-black text-primary">{completedSelected}</p>
-                <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wide">Completed</p>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-amber-500">{stats.averageScore || 0}</p>
-                <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wide">Avg Score</p>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-green-500">{stats.averageAccuracy || 0}%</p>
-                <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wide">Accuracy</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Quiz Type Selector */}
+      <QuizTypeSelector
+        selectedType={selectedType}
+        onTypeSelect={setSelectedType}
+        stats={quizTypeStats}
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Quiz Section */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Date and Subject Selection */}
-          <div className="space-y-4">
-            {/* Date Navigation */}
-            <div className="flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-              <ScrollArea className="w-full">
-                <div className="flex gap-2 pb-2">
-                  {availableDates.map(date => (
-                    <Button
-                      key={date}
-                      variant={selectedDate === date ? "default" : "outline"}
-                      size="sm"
-                      className={`whitespace-nowrap rounded-xl text-xs font-semibold transition-all ${selectedDate === date ? 'shadow-md' : ''}`}
-                      onClick={() => setSelectedDate(date)}
-                    >
-                      {date === todayStr ? (
-                        <>
-                          <Sparkles className="h-3 w-3 mr-1.5" />
-                          Today
-                        </>
-                      ) : (
-                        new Date(date).toLocaleDateString('en-GB', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: date.split('-')[0] !== todayStr.split('-')[0] ? '2-digit' : undefined
-                        })
-                      )}
-                    </Button>
-                  ))}
+      <div className="grid grid-cols-1 gap-6">
+        {/* Main Content */}
+        <div className="space-y-4">
+          {/* Date Navigation */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">
+                    {selectedDate === todayStr ? 'Today' : new Date(selectedDate).toLocaleDateString('en-IN')}
+                  </span>
                 </div>
-              </ScrollArea>
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToPreviousDate}
+                    disabled={availableDates.indexOf(selectedDate) === availableDates.length - 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {selectedDate !== todayStr && (
+                    <Button size="sm" onClick={() => setSelectedDate(todayStr)}>
+                      Today
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToNextDate}
+                    disabled={availableDates.indexOf(selectedDate) === 0}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Subject Filter */}
-            <div className="flex flex-wrap gap-2">
-              {subjects.map((subject) => (
-                <Button
-                  key={subject}
-                  variant={selectedSubject === subject ? "default" : "secondary"}
-                  size="sm"
-                  onClick={() => setSelectedSubject(subject)}
-                  className={`capitalize rounded-xl px-5 h-10 font-semibold transition-all ${selectedSubject === subject ? 'shadow-md' : ''}`}
-                >
-                  {subject === 'all' ? 'All Subjects' : subject}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Quiz Cards */}
-          <div className="space-y-4">
+          {/* Quiz List */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {filteredQuizzes.length > 0 ? (
               filteredQuizzes.map((quiz) => (
                 <QuizCard
@@ -331,32 +288,35 @@ const DailyQuizzes = () => {
                 />
               ))
             ) : (
-              <div className="h-80 flex flex-col items-center justify-center text-center p-8 bg-muted/20 border-2 border-dashed border-muted rounded-3xl">
-                <Target className="h-16 w-16 text-muted-foreground/20 mb-4" />
-                <h3 className="font-bold text-lg mb-2">No Quizzes Available</h3>
-                <p className="text-muted-foreground text-sm max-w-xs">
-                  There are no quizzes found for this date or subject combination.
-                </p>
-              </div>
+              <Card className="col-span-full">
+                <CardContent className="p-12 text-center">
+                  <Target className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <h3 className="font-semibold mb-2">No Quizzes Available</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    No quizzes found for this date
+                    {selectedType !== 'all' && ` in ${selectedType.replace('-', ' ')} category`}.
+                  </p>
+                  {selectedDate !== todayStr && (
+                    <Button onClick={() => setSelectedDate(todayStr)}>
+                      Go to Today
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Streak Rewards Card */}
+        {/* Sidebar - Hidden to allow full width for grid */}
+        <div className="hidden space-y-4">
           <StreakRewards
             streakData={streakData}
-            onClaimReward={handleClaimReward}
+            onClaimReward={() => console.log('Claim reward')}
           />
-
-          {/* Smart Recommendations */}
           <SmartRecommendations
             weakAreas={weakAreas}
             onViewFullAnalysis={() => console.log('View full analysis')}
           />
-
-          {/* Leaderboard */}
           <Leaderboard
             leaderboardData={leaderboard}
             period={leaderboardPeriod}
@@ -368,4 +328,4 @@ const DailyQuizzes = () => {
   );
 };
 
-export default DailyQuizzes;
+export default FreeQuizzes;

@@ -8,7 +8,7 @@ import {
 
 interface CalendarViewProps {
     selectedDate: string;
-    onDateSelect: (date: string);
+    onDateSelect: (date: string) => void;
     quizAvailability: Record<string, number>; // date -> count of quizzes
     completedDates: Set<string>;
 }

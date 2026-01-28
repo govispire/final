@@ -147,6 +147,7 @@ export const ExamCard: React.FC<ExamCardProps> = ({ exam, onUpdate, onDelete, on
             <StageProgressBar
               stages={exam.stages}
               onStageUpdate={(stageIndex, updates) => onUpdateStage(exam.id, stageIndex, updates)}
+              examName={exam.name}
             />
           </div>
         </CardContent>
